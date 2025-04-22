@@ -13,6 +13,8 @@ export default function GamePage() {
         { name: "Submarine", size: 3 },
         { name: "Destroyer", size: 2 },
     ];
+
+    const [gameStarted, setGameStarted] = useState(false);
     const searchParams = useSearchParams();
     const player1 = searchParams.get("player1");
     const player2 = searchParams.get("player2");
@@ -105,32 +107,35 @@ export default function GamePage() {
                             })}
                         </div>
 
-                        {!player1Ready ? (
-                            <div className="space-y-2">
-                                <Button className="w-full" disabled>
-                                    Set Ships Manually (Coming Soon)
-                                </Button>
-                                <Button
-                                    className="w-full bg-blue-600 hover:bg-blue-700"
-                                    onClick={() => handlePlaceShips("player1")}
-                                >
-                                    Auto-Place Ships (AI)
-                                </Button>
-                            </div>
-                        ) : (
-                            <div className="mt-2 space-y-2">
-                                <p className="text-green-400">Ships placed ✔</p>
-                                <Button
-                                    className="w-full bg-yellow-600 hover:bg-yellow-700"
-                                    onClick={() => {
-                                        const newBoard = placeShipsRandomly();
-                                        setPlayer1Board(newBoard);
-                                    }}
-                                >
-                                    Re-Generate Ships
-                                </Button>
-                            </div>
-
+                        {!gameStarted && (
+                            <>
+                                {!player1Ready ? (
+                                    <div className="space-y-2">
+                                        <Button className="w-full" disabled>
+                                            Set Ships Manually (Coming Soon)
+                                        </Button>
+                                        <Button
+                                            className="w-full bg-blue-600 hover:bg-blue-700"
+                                            onClick={() => handlePlaceShips("player1")}
+                                        >
+                                            Auto-Place Ships (AI)
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <div className="mt-2 space-y-2">
+                                        <p className="text-green-400">Ships placed ✔</p>
+                                        <Button
+                                            className="w-full bg-yellow-600 hover:bg-yellow-700"
+                                            onClick={() => {
+                                                const newBoard = placeShipsRandomly();
+                                                setPlayer1Board(newBoard);
+                                            }}
+                                        >
+                                            Re-Generate Ships
+                                        </Button>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
 
@@ -158,43 +163,49 @@ export default function GamePage() {
                             })}
                         </div>
 
-                        {!player2Ready ? (
-                            <div className="space-y-2">
-                                <Button className="w-full" disabled>
-                                    Set Ships Manually (Coming Soon)
-                                </Button>
-                                <Button
-                                    className="w-full bg-blue-600 hover:bg-blue-700"
-                                    onClick={() => handlePlaceShips("player2")}
-                                >
-                                    Auto-Place Ships (AI)
-                                </Button>
-                            </div>
-                        ) : (
-                            <div className="mt-2 space-y-2">
-                                <p className="text-green-400">Ships placed ✔</p>
-                                <Button
-                                    className="w-full bg-yellow-600 hover:bg-yellow-700"
-                                    onClick={() => {
-                                        const newBoard = placeShipsRandomly();
-                                        setPlayer2Board(newBoard);
-                                    }}
-                                >
-                                    Re-Generate Ships
-                                </Button>
-                            </div>
-
+                        {!gameStarted && (
+                            <>
+                                {!player2Ready ? (
+                                    <div className="space-y-2">
+                                        <Button className="w-full" disabled>
+                                            Set Ships Manually (Coming Soon)
+                                        </Button>
+                                        <Button
+                                            className="w-full bg-blue-600 hover:bg-blue-700"
+                                            onClick={() => handlePlaceShips("player2")}
+                                        >
+                                            Auto-Place Ships (AI)
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <div className="mt-2 space-y-2">
+                                        <p className="text-green-400">Ships placed ✔</p>
+                                        <Button
+                                            className="w-full bg-yellow-600 hover:bg-yellow-700"
+                                            onClick={() => {
+                                                const newBoard = placeShipsRandomly();
+                                                setPlayer2Board(newBoard);
+                                            }}
+                                        >
+                                            Re-Generate Ships
+                                        </Button>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>
-
-                {allShipsPlaced && (
-                    <div className="mt-8">
-                        <Button disabled className="w-64 bg-green-600 hover:bg-green-700">
-                            Begin Battle (TODO)
+                {allShipsPlaced && !gameStarted && (
+                    <div className="mt-8 flex justify-center">
+                        <Button
+                            className="w-64 bg-green-600 hover:bg-green-700"
+                            onClick={() => setGameStarted(true)}
+                        >
+                            Begin Battle
                         </Button>
                     </div>
                 )}
+
             </div>
         </div>
     );
