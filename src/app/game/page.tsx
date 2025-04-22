@@ -14,19 +14,65 @@ export default function GamePage() {
         { name: "Destroyer", size: 2 },
     ];
 
+    type Coord = { row: number; col: number };
+    type Ship = { name: string; coordinates: Coord[] };
+
+    const [currentTurn, setCurrentTurn] = useState<"player1" | "player2">("player1");
+    const [player1Shots, setPlayer1Shots] = useState<Coord[]>([]);
+    const [player2Shots, setPlayer2Shots] = useState<Coord[]>([]);
+    const [lastResult, setLastResult] = useState<string | null>(null);
+
+
     const [gameStarted, setGameStarted] = useState(false);
     const searchParams = useSearchParams();
     const player1 = searchParams.get("player1");
     const player2 = searchParams.get("player2");
-
-    type Coord = { row: number; col: number };
-    type Ship = { name: string; coordinates: Coord[] };
 
     const [player1Board, setPlayer1Board] = useState<Ship[]>([]);
     const [player2Board, setPlayer2Board] = useState<Ship[]>([]);
 
     const [player1Ready, setPlayer1Ready] = useState(false);
     const [player2Ready, setPlayer2Ready] = useState(false);
+
+
+    const getRandomShot = (shots: Coord[]): Coord => {
+        const tried = new Set(shots.map(s => `${s.row},${s.col}`));
+        const maxAttempts = 100;
+        let attempts = 0;
+
+        while (attempts < maxAttempts) {
+            const shot = { row: Math.floor(Math.random() * 10), col: Math.floor(Math.random() * 10) };
+            const key = `${shot.row},${shot.col}`;
+            if (!tried.has(key)) return shot;
+            attempts++;
+        }
+
+        throw new Error("Unable to find valid shot.");
+    };
+
+
+    const fireNextShot = () => {
+        if (!gameStarted) return;
+
+        const isPlayer1 = currentTurn === "player1";
+        const shooterShots = isPlayer1 ? player1Shots : player2Shots;
+        const opponentBoard = isPlayer1 ? player2Board : player1Board;
+
+        const shot = getRandomShot(shooterShots);
+        const isHit = opponentBoard.some(ship =>
+            ship.coordinates.some(c => c.row === shot.row && c.col === shot.col)
+        );
+
+        if (isPlayer1) {
+            setPlayer1Shots([...player1Shots, shot]);
+        } else {
+            setPlayer2Shots([...player2Shots, shot]);
+        }
+
+        setLastResult(`${isPlayer1 ? player1 : player2} fired at (${shot.row}, ${shot.col}) and ${isHit ? "hit!" : "missed."}`);
+        setCurrentTurn(isPlayer1 ? "player2" : "player1");
+    };
+
 
     const placeShipsRandomly = (): Ship[] => {
         const board: boolean[][] = Array.from({ length: 10 }, () =>
@@ -92,19 +138,28 @@ export default function GamePage() {
                             {Array.from({ length: 100 }).map((_, i) => {
                                 const row = Math.floor(i / 10);
                                 const col = i % 10;
-                                const isShip =
-                                    player1Board?.some((ship) =>
-                                        ship.coordinates.some((c) => c.row === row && c.col === col)
-                                    ) ?? false;
+                                const isShip = player1Board?.some(ship =>
+                                    ship.coordinates.some(c => c.row === row && c.col === col)
+                                );
+
+                                const opponentShots = player2Shots;
+                                const wasShot = opponentShots.some(s => s.row === row && s.col === col);
+                                const wasHit = wasShot && isShip;
+
+                                let cellColor = "bg-gray-800"; // default
+
+                                if (wasShot && wasHit) cellColor = "bg-red-600";     // HIT 🔴
+                                else if (wasShot && !wasHit) cellColor = "bg-gray-300"; // MISS ⚪
+                                else if (isShip) cellColor = "bg-blue-600";           // SHIP 🔵
 
                                 return (
                                     <div
                                         key={i}
-                                        className={`aspect-square border border-gray-900 ${isShip ? "bg-blue-600" : "bg-gray-800"
-                                            }`}
+                                        className={`aspect-square border border-gray-900 ${cellColor}`}
                                     />
                                 );
                             })}
+
                         </div>
 
                         {!gameStarted && (
@@ -148,19 +203,28 @@ export default function GamePage() {
                             {Array.from({ length: 100 }).map((_, i) => {
                                 const row = Math.floor(i / 10);
                                 const col = i % 10;
-                                const isShip =
-                                    player2Board?.some((ship) =>
-                                        ship.coordinates.some((c) => c.row === row && c.col === col)
-                                    ) ?? false;
+                                const isShip = player2Board?.some(ship =>
+                                    ship.coordinates.some(c => c.row === row && c.col === col)
+                                );
+
+                                const opponentShots = player1Shots;
+                                const wasShot = opponentShots.some(s => s.row === row && s.col === col);
+                                const wasHit = wasShot && isShip;
+
+                                let cellColor = "bg-gray-800"; // default
+
+                                if (wasShot && wasHit) cellColor = "bg-red-600";     // HIT 🔴
+                                else if (wasShot && !wasHit) cellColor = "bg-gray-300"; // MISS ⚪
+                                else if (isShip) cellColor = "bg-blue-600";           // SHIP 🔵
 
                                 return (
                                     <div
                                         key={i}
-                                        className={`aspect-square border border-gray-900 ${isShip ? "bg-blue-600" : "bg-gray-800"
-                                            }`}
+                                        className={`aspect-square border border-gray-900 ${cellColor}`}
                                     />
                                 );
                             })}
+
                         </div>
 
                         {!gameStarted && (
@@ -205,6 +269,22 @@ export default function GamePage() {
                         </Button>
                     </div>
                 )}
+
+                {gameStarted && (
+                    <div className="mt-8 text-center space-y-4">
+                        <p className="text-xl font-semibold">
+                            {currentTurn === "player1" ? player1 : player2}'s Turn
+                        </p>
+                        <Button
+                            className="bg-red-600 hover:bg-red-700"
+                            onClick={fireNextShot}
+                        >
+                            Next Turn
+                        </Button>
+                        {lastResult && <p className="text-lg text-gray-300">{lastResult}</p>}
+                    </div>
+                )}
+
 
             </div>
         </div>
