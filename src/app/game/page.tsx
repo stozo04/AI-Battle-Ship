@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Coord, isFleetSunkByShots, Ship } from "@/lib/gameUtils";
 
 export default function GamePage() {
 
@@ -14,8 +15,7 @@ export default function GamePage() {
         { name: "Destroyer", size: 2 },
     ];
 
-    type Coord = { row: number; col: number };
-    type Ship = { name: string; coordinates: Coord[] };
+
 
     const [currentTurn, setCurrentTurn] = useState<"player1" | "player2">("player1");
     const [player1Shots, setPlayer1Shots] = useState<Coord[]>([]);
@@ -27,13 +27,16 @@ export default function GamePage() {
     const searchParams = useSearchParams();
     const player1 = searchParams.get("player1");
     const player2 = searchParams.get("player2");
+    
 
     const [player1Board, setPlayer1Board] = useState<Ship[]>([]);
     const [player2Board, setPlayer2Board] = useState<Ship[]>([]);
 
     const [player1Ready, setPlayer1Ready] = useState(false);
     const [player2Ready, setPlayer2Ready] = useState(false);
-
+    const allShipsPlaced = player1Ready && player2Ready;
+    const [isGameOver, setGameOver] = useState(false);
+    const [winner, setWinner] = useState<string | null>(null);
 
     const getRandomShot = (shots: Coord[]): Coord => {
         const tried = new Set(shots.map(s => `${s.row},${s.col}`));
@@ -53,25 +56,41 @@ export default function GamePage() {
 
     const fireNextShot = () => {
         if (!gameStarted) return;
-
+      
         const isPlayer1 = currentTurn === "player1";
         const shooterShots = isPlayer1 ? player1Shots : player2Shots;
         const opponentBoard = isPlayer1 ? player2Board : player1Board;
-
+      
+        // 1) pick and record the shot locally
         const shot = getRandomShot(shooterShots);
+        const newShots = [...shooterShots, shot];
+      
+        // 2) determine hit
         const isHit = opponentBoard.some(ship =>
-            ship.coordinates.some(c => c.row === shot.row && c.col === shot.col)
+          ship.coordinates.some(c => c.row === shot.row && c.col === shot.col)
         );
-
-        if (isPlayer1) {
-            setPlayer1Shots([...player1Shots, shot]);
-        } else {
-            setPlayer2Shots([...player2Shots, shot]);
+      
+        // 3) update state for shots
+        if (isPlayer1) setPlayer1Shots(newShots);
+        else          setPlayer2Shots(newShots);
+      
+        // 4) check for a win *including* this shot
+        if (isHit && isFleetSunkByShots(opponentBoard, newShots)) {
+          setGameOver(true);
+          // declare the shooter as the winner
+          setWinner(isPlayer1 ? player1 : player2);
+          return;           // stop here—don’t swap turns
         }
-
-        setLastResult(`${isPlayer1 ? player1 : player2} fired at (${shot.row}, ${shot.col}) and ${isHit ? "hit!" : "missed."}`);
+      
+        // 5) no win? record result text and flip turns
+        setLastResult(
+          `${isPlayer1 ? player1 : player2} fired at (${shot.row}, ${shot.col}) and ${
+            isHit ? "hit!" : "missed."
+          }`
+        );
         setCurrentTurn(isPlayer1 ? "player2" : "player1");
-    };
+      };
+      
 
 
     const placeShipsRandomly = (): Ship[] => {
@@ -122,8 +141,6 @@ export default function GamePage() {
             setPlayer2Ready(true);
         }
     };
-
-    const allShipsPlaced = player1Ready && player2Ready;
 
     return (
         <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center p-8">
@@ -270,7 +287,7 @@ export default function GamePage() {
                     </div>
                 )}
 
-                {gameStarted && (
+                {gameStarted && !isGameOver && (
                     <div className="mt-8 text-center space-y-4">
                         <p className="text-xl font-semibold">
                             {currentTurn === "player1" ? player1 : player2}'s Turn
@@ -285,7 +302,11 @@ export default function GamePage() {
                     </div>
                 )}
 
-
+                {isGameOver && (
+                <div className="p-4 bg-green-100 rounded">
+                    🎉 Player {winner} wins! All ships sunk.
+                </div>
+                )}
             </div>
         </div>
     );
