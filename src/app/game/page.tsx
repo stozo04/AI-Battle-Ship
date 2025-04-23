@@ -28,6 +28,7 @@ export default function GamePage() {
     const allShipsPlaced = player1Ready && player2Ready;
     const [isGameOver, setGameOver] = useState(false);
     const [winner, setWinner] = useState<string | null>(null);
+    const [turnCount, setTurnCount] = useState(0);
 
     const getRandomShot = (shots: Coord[]): Coord => {
         const tried = new Set(shots.map(s => `${s.row},${s.col}`));
@@ -50,6 +51,7 @@ export default function GamePage() {
         setLoading(true);
       
         try {
+          setTurnCount(count => count + 1);
           const isPlayer1      = currentTurn === "player1";
           const shooterShots   = isPlayer1 ? player1Shots  : player2Shots;
           const opponentBoard  = isPlayer1 ? player2Board  : player1Board;
@@ -94,8 +96,26 @@ export default function GamePage() {
           // 5) Win check
           if (result === "hit" && isFleetSunkByShots(opponentBoard, newShots)) {
             setGameOver(true);
-            setWinner(isPlayer1 ? player1 : player2);
-            setLastResult(`${isPlayer1 ? player1 : player2} wins! 🎉`);
+            setWinner(currentTurn);
+            setLastResult(`${currentTurn} wins! 🎉`);
+
+            // 2️⃣ Persist to leaderboard
+            fetch("/api/record-result", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                player1,
+                player2,
+                winner: currentTurn,
+                turns: turnCount
+                })
+            })
+                .then(res => res.json())
+                .then(json => {
+                if (!json.success) console.error("Record failed:", json.error);
+                else console.log("Game recorded:", json.record);
+                })
+                .catch(err => console.error("Record‐result error:", err));
             return;
           }
       
