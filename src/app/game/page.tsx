@@ -3,23 +3,14 @@
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Coord, isFleetSunkByShots, Ship } from "@/lib/gameUtils";
+import { isFleetSunkByShots } from "@/lib/gameUtils";
+import { Coord, Ship, Shot, FLEET } from "@/lib/types";
 
 export default function GamePage() {
 
-    const FLEET = [
-        { name: "Carrier", size: 5 },
-        { name: "Battleship", size: 4 },
-        { name: "Cruiser", size: 3 },
-        { name: "Submarine", size: 3 },
-        { name: "Destroyer", size: 2 },
-    ];
-
-
-
     const [currentTurn, setCurrentTurn] = useState<"player1" | "player2">("player1");
-    const [player1Shots, setPlayer1Shots] = useState<Coord[]>([]);
-    const [player2Shots, setPlayer2Shots] = useState<Coord[]>([]);
+    const [player1Shots, setPlayer1Shots] = useState<Shot[]>([]);
+    const [player2Shots, setPlayer2Shots] = useState<Shot[]>([]);
     const [lastResult, setLastResult] = useState<string | null>(null);
 
 
@@ -70,16 +61,19 @@ export default function GamePage() {
           ship.coordinates.some(c => c.row === shot.row && c.col === shot.col)
         );
       
+        const result = isHit ? "hit" : "miss";
+        const newShot: Shot = { row: shot.row, col: shot.col, result };
+
         // 3) update state for shots
-        if (isPlayer1) setPlayer1Shots(newShots);
-        else          setPlayer2Shots(newShots);
+        if (isPlayer1) setPlayer1Shots(prev => [...prev, newShot]);
+        else          setPlayer2Shots(prev => [...prev, newShot]);
       
         // 4) check for a win *including* this shot
         if (isHit && isFleetSunkByShots(opponentBoard, newShots)) {
           setGameOver(true);
           // declare the shooter as the winner
           setWinner(isPlayer1 ? player1 : player2);
-          return;           // stop here—don’t swap turns
+          return;           // stop here—don't swap turns
         }
       
         // 5) no win? record result text and flip turns
@@ -290,7 +284,7 @@ export default function GamePage() {
                 {gameStarted && !isGameOver && (
                     <div className="mt-8 text-center space-y-4">
                         <p className="text-xl font-semibold">
-                            {currentTurn === "player1" ? player1 : player2}'s Turn
+                            {currentTurn === "player1" ? player1 : player2}&apos;s Turn
                         </p>
                         <Button
                             className="bg-red-600 hover:bg-red-700"
@@ -304,7 +298,7 @@ export default function GamePage() {
 
                 {isGameOver && (
                 <div className="p-4 bg-green-100 rounded">
-                    🎉 Player {winner} wins! All ships sunk.
+                    <span className="text-xl font-semibold">🎉 Player {winner} wins! All ships sunk.</span>
                 </div>
                 )}
             </div>
