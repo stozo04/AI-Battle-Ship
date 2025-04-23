@@ -1,0 +1,19 @@
+[
+    {
+      "id": "a1b2c3",
+      "player1": "Human",
+      "player2": "GPT-4",
+      "winner":  "GPT-4",
+      "turns":    23,
+      "playedAt": "2025-04-23T14:05:12.345Z"
+    },
+    {
+      "id": "d4e5f6",
+      "player1": "Claude 3",
+      "player2": "GPT-4",
+      "winner":  "Claude 3",
+      "turns":    18,
+      "playedAt": "2025-04-23T14:12:47.890Z"
+    }
+  ]
+  

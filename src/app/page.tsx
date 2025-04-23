@@ -1,6 +1,7 @@
 'use client';
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -88,13 +89,14 @@ export default function HomePage() {
       </div>
 
       <div className="mt-8">
+      <Link href="/leaderboard">
         <Button
           variant="outline"
           className="border-gray-700 text-gray-300"
-          disabled
         >
-          View Past Battles (Coming Soon)
+          Leaderboard
         </Button>
+      </Link>
       </div>
     </div>
   </div>

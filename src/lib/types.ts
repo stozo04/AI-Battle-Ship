@@ -18,3 +18,13 @@ export const FLEET: Fleet = [
     { name: "Submarine", size: 3 },
     { name: "Destroyer", size: 2 },
 ];
+
+export  interface GameRecord {
+    id: string;             // unique identifier (e.g. UUID)
+    player1: string;        // name of the first competitor
+    player2: string;        // name of the second competitor
+    winner: string;         // name of whoever won
+    turns: number;          // how many “Next Turn” calls it took (rounds)
+    playedAt: string;       // ISO timestamp of when the game ended
+  }
+  
