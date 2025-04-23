@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { isFleetSunkByShots } from "@/lib/gameUtils";
 import { Coord, Ship, Shot, FLEET } from "@/lib/types";
+import { player1BoardStore, player1ShotsStore, player2BoardStore, player2ShotsStore, setPlayer1StoreBoard, setPlayer2StoreBoard, setStorePlayer1Shots, setStorePlayer2Shots } from "@/lib/yourStore";
 
 export default function GamePage() {
 
@@ -45,47 +46,81 @@ export default function GamePage() {
     };
 
 
-    const fireNextShot = () => {
+    const fireNextShot = async () => {
         if (!gameStarted) return;
       
         const isPlayer1 = currentTurn === "player1";
         const shooterShots = isPlayer1 ? player1Shots : player2Shots;
         const opponentBoard = isPlayer1 ? player2Board : player1Board;
       
-        // 1) pick and record the shot locally
-        const shot = getRandomShot(shooterShots);
-        const newShots = [...shooterShots, shot];
-      
-        // 2) determine hit
-        const isHit = opponentBoard.some(ship =>
+        // 1) pick the next shot (either AI or random)
+        const shot =   getRandomShot(shooterShots) // or await getAiShot();
+        const result = opponentBoard.some(ship =>
           ship.coordinates.some(c => c.row === shot.row && c.col === shot.col)
-        );
+        )
+          ? "hit"
+          : "miss";
       
-        const result = isHit ? "hit" : "miss";
-        const newShot: Shot = { row: shot.row, col: shot.col, result };
+        // 2) build the new shots array
+        const newShot = { row: shot.row, col: shot.col, result } as Shot;
+        const newShots = [...shooterShots, newShot];
+      
+        // 3) update React state
+        if (isPlayer1) {
+          setPlayer1Shots(newShots);
+          setStorePlayer1Shots(newShots);
+        } else {
+          setPlayer2Shots(newShots);
+          setStorePlayer2Shots(newShots);
+        }
 
-        // 3) update state for shots
-        if (isPlayer1) setPlayer1Shots(prev => [...prev, newShot]);
-        else          setPlayer2Shots(prev => [...prev, newShot]);
+        // ——— DEBUG: log both React state and store state ———
+        console.log("React Shots:", isPlayer1 ? player1Shots : player2Shots);
+        console.log("Store Shots:", isPlayer1 ? player1ShotsStore : player2ShotsStore);
+        console.log("React Board:", isPlayer1 ? player2Board : player1Board);
+        console.log("Store Board:", isPlayer1 ? player2BoardStore : player1BoardStore);
       
-        // 4) check for a win *including* this shot
-        if (isHit && isFleetSunkByShots(opponentBoard, newShots)) {
+        // 4) check for win (using newShots)
+        if (
+          result === "hit" &&
+          isFleetSunkByShots(opponentBoard, newShots)
+        ) {
           setGameOver(true);
-          // declare the shooter as the winner
           setWinner(isPlayer1 ? player1 : player2);
-          return;           // stop here—don't swap turns
+          return;
         }
       
-        // 5) no win? record result text and flip turns
+        // 5) no win → record result text and flip turns
         setLastResult(
           `${isPlayer1 ? player1 : player2} fired at (${shot.row}, ${shot.col}) and ${
-            isHit ? "hit!" : "missed."
+            result === "hit" ? "hit!" : "missed."
           }`
         );
         setCurrentTurn(isPlayer1 ? "player2" : "player1");
       };
       
 
+    const handlePlaceShips = (player: "player1" | "player2") => {
+        if (player === "player1") {
+            // Generate a random board for player 1
+            const board = placeShipsRandomly();
+            // Tell React to update the player 1 board and render the UI
+            setPlayer1Board(board);
+             // flips the “ready” flag so UI shows “Ships placed ✔”
+            setPlayer1Ready(true);
+            // update your shared store
+            setPlayer1StoreBoard(board);
+        } else {
+            // Generate a random board for player 2
+            const board = placeShipsRandomly();
+            // Tell React to update the player 2 board and render the UI
+            setPlayer2Board(board);
+            // flips the “ready” flag so UI shows “Ships placed ✔”
+            setPlayer2Ready(true);
+            // update your shared store
+            setPlayer2StoreBoard(board);
+        }
+    };
 
     const placeShipsRandomly = (): Ship[] => {
         const board: boolean[][] = Array.from({ length: 10 }, () =>
@@ -122,18 +157,6 @@ export default function GamePage() {
         }
 
         return placedShips;
-    };
-
-    const handlePlaceShips = (player: "player1" | "player2") => {
-        if (player === "player1") {
-            const board = placeShipsRandomly();
-            setPlayer1Board(board);
-            setPlayer1Ready(true);
-        } else {
-            const board = placeShipsRandomly();
-            setPlayer2Board(board);
-            setPlayer2Ready(true);
-        }
     };
 
     return (
