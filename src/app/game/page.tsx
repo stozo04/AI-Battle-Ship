@@ -3,13 +3,12 @@
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { isFleetSunkByShots } from "@/lib/gameUtils";
-import { Coord, Ship, Shot, FLEET } from "@/lib/types";
-import { player1BoardStore, player1ShotsStore, player2BoardStore, player2ShotsStore, setPlayer1StoreBoard, setPlayer2StoreBoard, setStorePlayer1Shots, setStorePlayer2Shots } from "@/lib/yourStore";
+import { getSunkShips, isFleetSunkByShots } from "@/lib/gameUtils";
+import { Coord, Ship, Shot, FLEET, Player } from "@/lib/types";
 
 export default function GamePage() {
-
-    const [currentTurn, setCurrentTurn] = useState<"player1" | "player2">("player1");
+    const [isLoading, setLoading] = useState(false);
+    const [currentTurn, setCurrentTurn] = useState<Player>("player1");
     const [player1Shots, setPlayer1Shots] = useState<Shot[]>([]);
     const [player2Shots, setPlayer2Shots] = useState<Shot[]>([]);
     const [lastResult, setLastResult] = useState<string | null>(null);
@@ -19,7 +18,7 @@ export default function GamePage() {
     const searchParams = useSearchParams();
     const player1 = searchParams.get("player1");
     const player2 = searchParams.get("player2");
-    
+
 
     const [player1Board, setPlayer1Board] = useState<Ship[]>([]);
     const [player2Board, setPlayer2Board] = useState<Ship[]>([]);
@@ -47,69 +46,84 @@ export default function GamePage() {
 
 
     const fireNextShot = async () => {
-        if (!gameStarted) return;
+        if (!gameStarted || isGameOver || isLoading) return;
+        setLoading(true);
       
-        const isPlayer1 = currentTurn === "player1";
-        const shooterShots = isPlayer1 ? player1Shots : player2Shots;
-        const opponentBoard = isPlayer1 ? player2Board : player1Board;
+        try {
+          const isPlayer1      = currentTurn === "player1";
+          const shooterShots   = isPlayer1 ? player1Shots  : player2Shots;
+          const opponentBoard  = isPlayer1 ? player2Board  : player1Board;
       
-        // 1) pick the next shot (either AI or random)
-        const shot =   getRandomShot(shooterShots) // or await getAiShot();
-        const result = opponentBoard.some(ship =>
-          ship.coordinates.some(c => c.row === shot.row && c.col === shot.col)
-        )
-          ? "hit"
-          : "miss";
+          // 1) Prepare variables
+          let shot: Coord;
+          let aiReason: string;
       
-        // 2) build the new shots array
-        const newShot = { row: shot.row, col: shot.col, result } as Shot;
-        const newShots = [...shooterShots, newShot];
+          // 2) Decide shot source
+          if (isPlayer1) {
+            shot     = getRandomShot(shooterShots);
+            aiReason = "Random shot";
+          } else {
+            try {
+              const sunk   = getSunkShips(opponentBoard, shooterShots);
+              const aiResp = await getAiShot(currentTurn, shooterShots, sunk);
+              shot         = aiResp.nextShot;
+              aiReason     = aiResp.reason;
+            } catch (err) {
+              console.error(err);
+              setLastResult("Error fetching AI move. Check console.");
+              return;
+            }
+          }
       
-        // 3) update React state
-        if (isPlayer1) {
-          setPlayer1Shots(newShots);
-          setStorePlayer1Shots(newShots);
-        } else {
-          setPlayer2Shots(newShots);
-          setStorePlayer2Shots(newShots);
+          // 3) Compute hit/miss
+          const isHit   = opponentBoard.some(ship =>
+            ship.coordinates.some(c => c.row === shot.row && c.col === shot.col)
+          );
+          const result: "hit" | "miss" = isHit ? "hit" : "miss";
+      
+          // 4) Build and record the shot
+          const newShot  = { row: shot.row, col: shot.col, result } as Shot;
+          const newShots = [...shooterShots, newShot];
+      
+          if (isPlayer1) {
+            setPlayer1Shots(newShots);
+          } else {
+            setPlayer2Shots(newShots);
+          }
+      
+          // 5) Win check
+          if (result === "hit" && isFleetSunkByShots(opponentBoard, newShots)) {
+            setGameOver(true);
+            setWinner(isPlayer1 ? player1 : player2);
+            setLastResult(`${isPlayer1 ? player1 : player2} wins! 🎉`);
+            return;
+          }
+      
+          // 6) Show what happened + AI reasoning
+          setLastResult(
+            `${isPlayer1 ? player1 : player2} fired at (${shot.row}, ${shot.col}) and ${result}.` +
+            ` AI thought: "${aiReason}"`
+          );
+      
+          // 7) Swap turns
+          setCurrentTurn(isPlayer1 ? "player2" : "player1");
+        } catch (err) {
+          console.error(err);
+          setLastResult("Error firing shot. Check console.");
+        } finally {
+          setLoading(false);
         }
-
-        // ——— DEBUG: log both React state and store state ———
-        console.log("React Shots:", isPlayer1 ? player1Shots : player2Shots);
-        console.log("Store Shots:", isPlayer1 ? player1ShotsStore : player2ShotsStore);
-        console.log("React Board:", isPlayer1 ? player2Board : player1Board);
-        console.log("Store Board:", isPlayer1 ? player2BoardStore : player1BoardStore);
-      
-        // 4) check for win (using newShots)
-        if (
-          result === "hit" &&
-          isFleetSunkByShots(opponentBoard, newShots)
-        ) {
-          setGameOver(true);
-          setWinner(isPlayer1 ? player1 : player2);
-          return;
-        }
-      
-        // 5) no win → record result text and flip turns
-        setLastResult(
-          `${isPlayer1 ? player1 : player2} fired at (${shot.row}, ${shot.col}) and ${
-            result === "hit" ? "hit!" : "missed."
-          }`
-        );
-        setCurrentTurn(isPlayer1 ? "player2" : "player1");
       };
       
 
-    const handlePlaceShips = (player: "player1" | "player2") => {
+    const handlePlaceShips = (player: Player) => {
         if (player === "player1") {
             // Generate a random board for player 1
             const board = placeShipsRandomly();
             // Tell React to update the player 1 board and render the UI
             setPlayer1Board(board);
-             // flips the “ready” flag so UI shows “Ships placed ✔”
+            // flips the “ready” flag so UI shows “Ships placed ✔”
             setPlayer1Ready(true);
-            // update your shared store
-            setPlayer1StoreBoard(board);
         } else {
             // Generate a random board for player 2
             const board = placeShipsRandomly();
@@ -117,8 +131,6 @@ export default function GamePage() {
             setPlayer2Board(board);
             // flips the “ready” flag so UI shows “Ships placed ✔”
             setPlayer2Ready(true);
-            // update your shared store
-            setPlayer2StoreBoard(board);
         }
     };
 
@@ -158,6 +170,23 @@ export default function GamePage() {
 
         return placedShips;
     };
+
+
+    async function getAiShot(
+        player: Player,
+        shots: Shot[],
+        sunkShips: string[],
+      ) {
+        const res = await fetch("/api/next-shot", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ player, shots, sunkShips }),
+        });
+        if (!res.ok) throw new Error(res.statusText);
+        return res.json() as Promise<{ nextShot: Coord; reason: string }>;
+      }
+      
+
 
     return (
         <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center p-8">
@@ -310,19 +339,20 @@ export default function GamePage() {
                             {currentTurn === "player1" ? player1 : player2}&apos;s Turn
                         </p>
                         <Button
-                            className="bg-red-600 hover:bg-red-700"
                             onClick={fireNextShot}
+                            disabled={isLoading}
+                            className="bg-red-600 hover:bg-red-700"
                         >
-                            Next Turn
+                            {isLoading ? "Thinking…" : "Next Turn"}
                         </Button>
                         {lastResult && <p className="text-lg text-gray-300">{lastResult}</p>}
                     </div>
                 )}
 
                 {isGameOver && (
-                <div className="p-4 bg-green-100 rounded">
-                    <span className="text-xl font-semibold">🎉 Player {winner} wins! All ships sunk.</span>
-                </div>
+                    <div className="p-4 bg-green-100 rounded">
+                        <span className="text-xl font-semibold">🎉 Player {winner} wins! All ships sunk.</span>
+                    </div>
                 )}
             </div>
         </div>
