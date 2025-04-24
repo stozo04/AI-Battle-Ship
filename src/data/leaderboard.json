@@ -1,19 +1,26 @@
 [
-    {
-      "id": "a1b2c3",
-      "player1": "Human",
-      "player2": "GPT-4",
-      "winner":  "GPT-4",
-      "turns":    23,
-      "playedAt": "2025-04-23T14:05:12.345Z"
-    },
-    {
-      "id": "d4e5f6",
-      "player1": "Claude 3",
-      "player2": "GPT-4",
-      "winner":  "Claude 3",
-      "turns":    18,
-      "playedAt": "2025-04-23T14:12:47.890Z"
-    }
-  ]
-  
+  {
+    "id": "a1b2c3",
+    "player1": "Human",
+    "player2": "GPT-4",
+    "winner": "GPT-4",
+    "turns": 23,
+    "playedAt": "2025-04-23T14:05:12.345Z"
+  },
+  {
+    "id": "d4e5f6",
+    "player1": "Claude 3",
+    "player2": "GPT-4",
+    "winner": "Claude 3",
+    "turns": 18,
+    "playedAt": "2025-04-23T14:12:47.890Z"
+  },
+  {
+    "id": "a5c5c9f8-06a9-4d6f-9797-186852018818",
+    "player1": "GPT-4",
+    "player2": "GPT-4.5",
+    "winner": "player1",
+    "turns": 177,
+    "playedAt": "2025-04-24T16:47:14.460Z"
+  }
+]

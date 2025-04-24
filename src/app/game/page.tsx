@@ -1,34 +1,30 @@
 'use client';
 
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { getSunkShips, isFleetSunkByShots } from "@/lib/gameUtils";
 import { Coord, Ship, Shot, FLEET, Player } from "@/lib/types";
 
-export default function GamePage() {
-    const [isLoading, setLoading] = useState(false);
-    const [currentTurn, setCurrentTurn] = useState<Player>("player1");
-    const [player1Shots, setPlayer1Shots] = useState<Shot[]>([]);
-    const [player2Shots, setPlayer2Shots] = useState<Shot[]>([]);
-    const [lastResult, setLastResult] = useState<string | null>(null);
-
-
-    const [gameStarted, setGameStarted] = useState(false);
+function GameContent() {
     const searchParams = useSearchParams();
     const player1 = searchParams.get("player1");
     const player2 = searchParams.get("player2");
-
-
+    
+    const [currentTurn, setCurrentTurn] = useState<"player1" | "player2">("player1");
+    const [player1Shots, setPlayer1Shots] = useState<Shot[]>([]);
+    const [player2Shots, setPlayer2Shots] = useState<Shot[]>([]);
+    const [lastResult, setLastResult] = useState<string | null>(null);
+    const [gameStarted, setGameStarted] = useState(false);
     const [player1Board, setPlayer1Board] = useState<Ship[]>([]);
     const [player2Board, setPlayer2Board] = useState<Ship[]>([]);
-
     const [player1Ready, setPlayer1Ready] = useState(false);
     const [player2Ready, setPlayer2Ready] = useState(false);
     const allShipsPlaced = player1Ready && player2Ready;
     const [isGameOver, setGameOver] = useState(false);
     const [winner, setWinner] = useState<string | null>(null);
     const [turnCount, setTurnCount] = useState(0);
+    const [isShotInProgress, setIsShotInProgress] = useState(false);
 
     const getRandomShot = (shots: Coord[]): Coord => {
         const tried = new Set(shots.map(s => `${s.row},${s.col}`));
@@ -45,12 +41,11 @@ export default function GamePage() {
         throw new Error("Unable to find valid shot.");
     };
 
-
     const fireNextShot = async () => {
-        if (!gameStarted || isGameOver || isLoading) return;
-        setLoading(true);
+        if (!gameStarted || isGameOver || isShotInProgress) return;
       
         try {
+          setIsShotInProgress(true);
           setTurnCount(count => count + 1);
           const isPlayer1      = currentTurn === "player1";
           const shooterShots   = isPlayer1 ? player1Shots  : player2Shots;
@@ -131,25 +126,24 @@ export default function GamePage() {
           console.error(err);
           setLastResult("Error firing shot. Check console.");
         } finally {
-          setLoading(false);
+          setIsShotInProgress(false);
         }
-      };
+    };
       
-
     const handlePlaceShips = (player: Player) => {
         if (player === "player1") {
             // Generate a random board for player 1
             const board = placeShipsRandomly();
             // Tell React to update the player 1 board and render the UI
             setPlayer1Board(board);
-            // flips the “ready” flag so UI shows “Ships placed ✔”
+            // flips the "ready" flag so UI shows "Ships placed ✔"
             setPlayer1Ready(true);
         } else {
             // Generate a random board for player 2
             const board = placeShipsRandomly();
             // Tell React to update the player 2 board and render the UI
             setPlayer2Board(board);
-            // flips the “ready” flag so UI shows “Ships placed ✔”
+            // flips the "ready" flag so UI shows "Ships placed ✔"
             setPlayer2Ready(true);
         }
     };
@@ -191,7 +185,6 @@ export default function GamePage() {
         return placedShips;
     };
 
-
     async function getAiShot(
         player: Player,
         shots: Shot[],
@@ -206,8 +199,6 @@ export default function GamePage() {
         return res.json() as Promise<{ nextShot: Coord; reason: string }>;
       }
       
-
-
     return (
         <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center p-8">
             <div className="max-w-6xl w-full text-center">
@@ -360,10 +351,10 @@ export default function GamePage() {
                         </p>
                         <Button
                             onClick={fireNextShot}
-                            disabled={isLoading}
                             className="bg-red-600 hover:bg-red-700"
+                            disabled={isShotInProgress}
                         >
-                            {isLoading ? "Thinking…" : "Next Turn"}
+                            {isShotInProgress ? "Processing..." : "Next Turn"}
                         </Button>
                         {lastResult && <p className="text-lg text-gray-300">{lastResult}</p>}
                     </div>
@@ -376,5 +367,13 @@ export default function GamePage() {
                 )}
             </div>
         </div>
+    );
+}
+
+export default function GamePage() {
+    return (
+        <Suspense fallback={<div>Loading...</div>}>
+            <GameContent />
+        </Suspense>
     );
 }
