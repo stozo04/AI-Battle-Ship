@@ -8,8 +8,8 @@ import { Coord, Ship, Shot, FLEET, Player } from "@/lib/types";
 
 function GameContent() {
     const searchParams = useSearchParams();
-    const player1 = searchParams.get("player1");
-    const player2 = searchParams.get("player2");
+    const player1 = searchParams.get("player1") || "Unknown Player 1";
+    const player2 = searchParams.get("player2") || "Unknown Player 2";
     
     const [currentTurn, setCurrentTurn] = useState<"player1" | "player2">("player1");
     const [player1Shots, setPlayer1Shots] = useState<Shot[]>([]);
@@ -56,13 +56,15 @@ function GameContent() {
           let aiReason: string;
       
           // 2) Decide shot source
-          if (isPlayer1) {
-            shot     = getRandomShot(shooterShots);
-            aiReason = "Random shot";
-          } else {
+        //   if (isPlayer1) {
+        //     shot     = getRandomShot(shooterShots);
+        //     aiReason = "Random shot";
+        //   } else {
             try {
               const sunk   = getSunkShips(opponentBoard, shooterShots);
-              const aiResp = await getAiShot(currentTurn, shooterShots, sunk);
+              console.log("player1", player1);
+              console.log("player2", player2);
+              const aiResp = await getAiShot(isPlayer1 ? player1 : player2, shooterShots, sunk);
               shot         = aiResp.nextShot;
               aiReason     = aiResp.reason;
             } catch (err) {
@@ -70,7 +72,7 @@ function GameContent() {
               setLastResult("Error fetching AI move. Check console.");
               return;
             }
-          }
+         // }
       
           // 3) Compute hit/miss
           const isHit   = opponentBoard.some(ship =>
@@ -92,7 +94,7 @@ function GameContent() {
           if (result === "hit" && isFleetSunkByShots(opponentBoard, newShots)) {
             setGameOver(true);
             setWinner(currentTurn);
-            setLastResult(`${currentTurn} wins! 🎉`);
+            setLastResult(`${currentTurn === "player1" ? player1 : player2} wins! 🎉`);
 
             // 2️⃣ Persist to leaderboard
             fetch("/api/record-result", {
@@ -186,18 +188,23 @@ function GameContent() {
     };
 
     async function getAiShot(
-        player: Player,
+        player: string,
         shots: Shot[],
         sunkShips: string[],
-      ) {
+    ) {
         const res = await fetch("/api/next-shot", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ player, shots, sunkShips }),
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+                player, 
+                shots, 
+                sunkShips,
+                model: "OpenAI" // Default to OpenAI model
+            }),
         });
         if (!res.ok) throw new Error(res.statusText);
         return res.json() as Promise<{ nextShot: Coord; reason: string }>;
-      }
+    }
       
     return (
         <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center p-8">

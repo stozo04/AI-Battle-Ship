@@ -12,7 +12,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 
-const aiModels = ["GPT-4", "GPT-4.5", "Claude 3", "Gemini 1.5"];
+const aiModels = ["OpenAI gpt-4.1-nano-2025-04-14", "OpenAI GPT-4.5", "Claude 3", "Google gemini-2.5-flash-preview-04-17", "Human"];
 
 export default function HomePage() {
   const [player1, setPlayer1] = useState<string>("");

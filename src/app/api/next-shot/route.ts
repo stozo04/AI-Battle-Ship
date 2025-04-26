@@ -1,6 +1,7 @@
 // src/app/api/next-shot/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 
 function unwrapCodeBlock(str: string): string {
   // remove leading ```json or ``` and trailing ```
@@ -12,13 +13,16 @@ function unwrapCodeBlock(str: string): string {
 }
 
 export async function POST(req: Request) {
-  const { shots, sunkShips } = await req.json();
+  const { shots, sunkShips, model } = await req.json();
   // (ignore any server‐side store entirely)
 
+  console.log("shots", shots);
+  console.log("sunkShips", sunkShips);
+  console.log("model", model);
   const payload = { size: 10, shots, sunkShips };
 
-    const prompt = `
-      You are an elite, master-level Battleship strategist AI.
+  const prompt = `
+    You are an elite, master-level Battleship strategist AI.
 
 **Game Context:**
 * **Board:** Standard 10x10 grid (rows 0-9, columns 0-9).
@@ -53,34 +57,62 @@ Based on this history, determine the single optimal coordinate for the **next sh
 5.  **Reasoning:** Your suggested shot must be logically derived from the current game state and the strategic directives.
 
 **Output Requirements:**
-Return your decision as a JSON object with two fields:
-* 'nextShot': An object '{row: R, column: C}' representing your chosen coordinate (where R and C are integers between 0 and 9, inclusive).
-* 'reason': A concise string explaining your strategic thinking for selecting 'nextShot'. Reference the current mode (Hunt or Target), relevant past shots (e.g., "Targeting adjacent to hit at [3,4] which is part of an unsunk ship"), and why this specific coordinate is optimal based on the directives (e.g., "Exploring vertical orientation based on hit at [3,4] and miss at [3,5]", "Highest probability area for remaining 4-length ship", "Eliminating this square based on miss at [5,6]").
+IMPORTANT: Your response must be a valid JSON object with exactly these fields:
+{
+  "nextShot": {
+    "row": <number between 0 and 9>,
+    "col": <number between 0 and 9>
+  },
+  "reason": "<your strategic explanation>"
+}
+
+CRITICAL FORMATTING RULES:
+1. Do not include any markdown formatting (no \`\`\`json or \`\`\`)
+2. Do not include any newlines in the JSON
+3. Do not include any extra text before or after the JSON
+4. The reason field should be a single line of text
+5. Do not escape any characters in the JSON
+6. Do not add any extra whitespace or formatting
+
+Your input payload will look like this:
+${JSON.stringify(payload, null, 2)}
 
 Now, analyze the provided 'shots' and 'sunkShips' history and determine the best 'nextShot'.
-    Your input payload will look like this:
+`;
 
+  let raw: string | undefined;
 
-  \`\`\`json
-  ${JSON.stringify(payload, null, 2)}
-  \`\`\`
+  if (model.startsWith("OpenAI")) {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4.1-nano-2025-04-14",
+      messages: [{ role: "user", content: prompt }],
+    });
+    raw = completion.choices[0].message?.content || undefined;
+  } else if (model.startsWith("Google")) {
+    const genAI = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || "" });
+    const result = await genAI.models.generateContent({
+      model: "gemini-2.5-pro-preview-03-25",
+      contents: prompt
+    });
+    raw = result.text || undefined;
+  } 
+  // else if (model.startsWith("Claude")) {
+  //   // For now, we'll use OpenAI's API for Claude as well
+  //   // TODO: Implement proper Claude API when available
+  //   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  //   const completion = await openai.chat.completions.create({
+  //     model: "o4-mini",
+  //     messages: [{ role: "user", content: prompt }],
+  //   });
+  //   raw = completion.choices[0].message?.content || undefined;
+  // } else {
+  //   return NextResponse.json(
+  //     { error: "Unsupported model" },
+  //     { status: 400 }
+  //   );
+  // }
 
-  Your reply must include only:
-  \`\`\`json
-  {
-    "nextShot": { "row": X, "col": Y },
-     "reason": "Your concise, situation-based targeting rationale here (must match the chosen coordinates)." }
-  \`\`\`
-  `;
-  // gpt-4.1-nano-2025-04-14
-  console.log('new prompt');
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const completion = await openai.chat.completions.create({
-    model: "o4-mini",
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  const raw = completion.choices[0].message?.content;
   if (!raw) {
     return NextResponse.json(
       { error: "Empty AI response" },
@@ -94,22 +126,50 @@ Now, analyze the provided 'shots' and 'sunkShips' history and determine the best
   // 2️⃣ try to parse
   let responseJson;
   try {
+    // First attempt: direct parse
     responseJson = JSON.parse(jsonText);
-    const { nextShot, reason } = responseJson;
-    const row = Math.min(Math.max(nextShot.row, 0), 9);
-    const col = Math.min(Math.max(nextShot.col, 0), 9);
-
-    return NextResponse.json({
-      nextShot: { row, col },
-      reason: (row !== nextShot.row || col !== nextShot.col)
-        ? `${reason} (clamped into 0–9 bounds)`
-        : reason
-    });
-
   } catch {
+    try {
+      // Second attempt: try to extract JSON from the text
+      const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const extractedJson = jsonMatch[0];
+        try {
+          // Try parsing the extracted JSON directly
+          responseJson = JSON.parse(extractedJson);
+        } catch {
+          // If that fails, try parsing it as a string that might be double-encoded
+          const unescaped = extractedJson.replace(/\\n/g, ' ').replace(/\\"/g, '"');
+          responseJson = JSON.parse(unescaped);
+        }
+      } else {
+        throw new Error("No valid JSON found in response");
+      }
+    } catch {
+      return NextResponse.json(
+        { error: "Bad JSON from AI", detail: jsonText },
+        { status: 500 }
+      );
+    }
+  }
+
+  // 3️⃣ validate and extract required fields
+  const { nextShot, reason } = responseJson;
+  if (!nextShot || typeof nextShot.row !== 'number' || typeof nextShot.col !== 'number') {
     return NextResponse.json(
-      { error: "Bad JSON from AI", detail: jsonText },
+      { error: "Invalid shot coordinates in AI response", detail: jsonText },
       { status: 500 }
     );
   }
+
+  // 4️⃣ clamp coordinates to valid range
+  const row = Math.min(Math.max(nextShot.row, 0), 9);
+  const col = Math.min(Math.max(nextShot.col, 0), 9);
+
+  return NextResponse.json({
+    nextShot: { row, col },
+    reason: (row !== nextShot.row || col !== nextShot.col)
+      ? `${reason || "No reason provided"} (clamped into 0–9 bounds)`
+      : (reason || "No reason provided")
+  });
 }
