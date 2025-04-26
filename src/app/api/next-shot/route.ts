@@ -80,6 +80,7 @@ ${JSON.stringify(payload, null, 2)}
 Now, analyze the provided 'shots' and 'sunkShips' history and determine the best 'nextShot'.
 `;
 
+console.log("prompt", prompt);
   let raw: string | undefined;
 
   if (model.startsWith("OpenAI")) {

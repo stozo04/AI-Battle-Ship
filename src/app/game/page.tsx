@@ -1,7 +1,7 @@
 'use client';
 
 import { useSearchParams } from "next/navigation";
-import { useState, Suspense } from "react";
+import { useState, Suspense, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { getSunkShips, isFleetSunkByShots } from "@/lib/gameUtils";
 import { Coord, Ship, Shot, FLEET, Player } from "@/lib/types";
@@ -25,6 +25,22 @@ function GameContent() {
     const [winner, setWinner] = useState<string | null>(null);
     const [turnCount, setTurnCount] = useState(0);
     const [isShotInProgress, setIsShotInProgress] = useState(false);
+    const [isAutoPlaying, setIsAutoPlaying] = useState(false);
+
+    // Add useEffect for auto-play
+    useEffect(() => {
+        let timeoutId: NodeJS.Timeout;
+        
+        if (isAutoPlaying && gameStarted && !isGameOver && !isShotInProgress) {
+            timeoutId = setTimeout(() => {
+                fireNextShot();
+            }, 1000); // 1 second delay between turns
+        }
+
+        return () => {
+            if (timeoutId) clearTimeout(timeoutId);
+        };
+    }, [isAutoPlaying, gameStarted, isGameOver, isShotInProgress, currentTurn]);
 
     const getRandomShot = (shots: Coord[]): Coord => {
         const tried = new Set(shots.map(s => `${s.row},${s.col}`));
@@ -356,13 +372,21 @@ function GameContent() {
                         <p className="text-xl font-semibold">
                             {currentTurn === "player1" ? player1 : player2}&apos;s Turn
                         </p>
-                        <Button
-                            onClick={fireNextShot}
-                            className="bg-red-600 hover:bg-red-700"
-                            disabled={isShotInProgress}
-                        >
-                            {isShotInProgress ? "Processing..." : "Next Turn"}
-                        </Button>
+                        <div className="space-y-2">
+                            <Button
+                                onClick={fireNextShot}
+                                className="bg-red-600 hover:bg-red-700"
+                                disabled={isShotInProgress}
+                            >
+                                {isShotInProgress ? "Processing..." : "Next Turn"}
+                            </Button>
+                            <Button
+                                onClick={() => setIsAutoPlaying(!isAutoPlaying)}
+                                className={`${isAutoPlaying ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-green-600 hover:bg-green-700'}`}
+                            >
+                                {isAutoPlaying ? "Stop Auto-Play" : "Start Auto-Play"}
+                            </Button>
+                        </div>
                         {lastResult && <p className="text-lg text-gray-300">{lastResult}</p>}
                     </div>
                 )}
